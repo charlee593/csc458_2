@@ -28,8 +28,8 @@ class CS144Topo( Topo ):
         Topo.__init__( self, *args, **kwargs )
         server1 = self.addHost( 'server1' )
         server2 = self.addHost( 'server2' )
-        nat = self.add_switch( 'sw0' )
-        bridge = self.add_switch( 'sw1' )
+        nat = self.addSwitch( 'sw0' )
+        bridge = self.addSwitch( 'sw1' )
         client = self.addHost('client')
         self.add_link(client, nat)
         for h in server1, server2, nat: #client, root:
