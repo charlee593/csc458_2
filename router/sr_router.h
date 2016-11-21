@@ -67,6 +67,14 @@ int sr_read_from_server(struct sr_instance* );
 /* -- sr_router.c -- */
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
+void reply_to_arp_req(struct sr_instance* sr, struct sr_ethernet_hdr* e_hdr, struct sr_arp_hdr* a_hdr, struct sr_if* iface);
+void process_arp_reply(struct sr_instance* sr, struct sr_arp_hdr* arp_hdr, struct sr_if* iface);
+void handle_ip_packet_for_router(struct sr_instance* sr, uint8_t* packet, unsigned int len, struct sr_ip_hdr* ip_hdr, struct sr_if* iface);
+void handle_ip_packet_to_forward(struct sr_instance* sr, uint8_t* packet, unsigned int len, struct sr_ip_hdr* ip_hdr, struct sr_if* iface);
+void send_echo_reply(struct sr_instance* sr, uint8_t* received_frame, char* from_interface);
+void send_icmp_t3_or_t11(struct sr_instance* sr, uint8_t* received_frame, char* from_interface, sr_icmp_type_t type, sr_icmp_dest_unreachable_code_t code);
+struct sr_if* lpm(struct sr_instance *sr, uint32_t target_ip);
+int get_mask_len(uint32_t mask);
 
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );
