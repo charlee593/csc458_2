@@ -30,9 +30,8 @@
    --*/
 void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
 {
-    time_t now;
-    time(&now);
-    if(req->times_sent == 0 || difftime(now, req->sent) >= 1.0)
+    time_t now = time(&now);
+    if(difftime(now, req->sent) >= 1)
     {
         if(req->times_sent >= 5)
         {
@@ -46,9 +45,9 @@ void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
             {
                 struct sr_ip_hdr* ip_hdr = (struct sr_ip_hdr*)(curr_packet_to_send->buf + sizeof(struct sr_ethernet_hdr));
 
-                struct sr_if* match_iface = lpm(sr, ip_hdr->ip_src);
+                struct sr_rt* rt = lpm(sr, ip_hdr->ip_src);
 
-                send_icmp_t3_or_t11(sr, curr_packet_to_send->buf, match_iface->name, icmp_type_dest_unreachable, icmp_code_host_unreachable);
+                send_icmp_t3_or_t11(sr, curr_packet_to_send->buf, rt->interface, icmp_type_dest_unreachable, icmp_code_host_unreachable);
 
                 curr_packet_to_send = curr_packet_to_send->next;
             }
@@ -58,9 +57,9 @@ void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
         else
         {
             printf("---->> Send ARP request <----\n");
-            struct sr_if* match_iface = lpm(sr, req->ip);
-            if(match_iface)
-            {
+
+            struct sr_if *interface = sr_get_interface(sr, req->packets->iface);
+
                 /* Construct an ARP request and send it */
                 struct sr_ethernet_hdr* request_packet_ethernet_header = ((struct sr_ethernet_hdr*)malloc(sizeof(struct sr_ethernet_hdr)));
                 struct sr_arp_hdr* request_packet_arp_header = ((struct sr_arp_hdr*)malloc(sizeof(struct sr_arp_hdr)));
@@ -75,7 +74,7 @@ void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
                 /* Ethernet header - Source Address */
                 for (i = 0; i < ETHER_ADDR_LEN; i++)
                 {
-                    request_packet_ethernet_header->ether_shost[i] = ((uint8_t)match_iface->addr[i]);
+                    request_packet_ethernet_header->ether_shost[i] = ((uint8_t)interface->addr[i]);
                 }
 
                 /* Ethernet header - Type */
@@ -99,11 +98,11 @@ void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
                 /* ARP header - Source hardware address */
                 for (i = 0; i < ETHER_ADDR_LEN; i++)
                 {
-                    request_packet_arp_header->ar_sha[i] = match_iface->addr[i];
+                    request_packet_arp_header->ar_sha[i] = interface->addr[i];
                 }
 
                 /* ARP header - Source protocol address */
-                request_packet_arp_header->ar_sip = match_iface->ip;
+                request_packet_arp_header->ar_sip = interface->ip;
 
                 /* ARP header - Destination hardware address */
                 for (i = 0; i < ETHER_ADDR_LEN; i++)
@@ -122,21 +121,15 @@ void handle_arpreq(struct sr_arpreq *req, struct sr_instance *sr)
                 print_hdrs(request_packet, sizeof(struct sr_ethernet_hdr) + sizeof(struct sr_arp_hdr));
 
                 /* Send packet */
-                sr_send_packet(sr, request_packet, sizeof(struct sr_ethernet_hdr) + sizeof(struct sr_arp_hdr), match_iface->name);
+                sr_send_packet(sr, request_packet, sizeof(struct sr_ethernet_hdr) + sizeof(struct sr_arp_hdr), interface->name);
 
-                time_t now;
-                time(&now);
                 req->sent = now;
                 req->times_sent++;
 
                 free(request_packet_ethernet_header);
                 free(request_packet_arp_header);
                 free(request_packet);
-            }
-            else
-            {
-                printf("---->> Performing LPM did not return any result. Not sending ARP request <----\n");
-            }
+
         }
     }
 } /* end handle_arpreq */
