@@ -5,6 +5,15 @@
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "sr_protocol.h"
+#include "sr_arpcache.h"
+#include "sr_router.h"
+#include "sr_utils.h"
+#include "sr_if.h"
+
 
 typedef enum {
   nat_mapping_icmp,
@@ -18,7 +27,7 @@ struct sr_nat_connection {
   struct sr_nat_connection *next;
 };
 
-struct sr_nat_mapping {
+typedef struct sr_nat_mapping {
   sr_nat_mapping_type type;
   uint32_t ip_int; /* internal ip addr */
   uint32_t ip_ext; /* external ip addr */
@@ -27,7 +36,7 @@ struct sr_nat_mapping {
   time_t last_updated; /* use to timeout mappings */
   struct sr_nat_connection *conns; /* list of connections. null for ICMP */
   struct sr_nat_mapping *next;
-};
+} sr_nat_mapping_t ;
 
 typedef struct sr_nat {
   /* add any fields here */
@@ -65,5 +74,10 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
 
+void nat_handle_icmp(struct sr_instance* sr, uint8_t* received_frame, unsigned int length, struct sr_if* iface);
+bool check_ip_for_me(struct sr_instance* sr, struct sr_ip_hdr* ip_packet);
+static void natHandleReceivedOutboundIpPacket(struct sr_instance* sr, sr_ip_hdr_t* packet,
+   unsigned int length,  struct sr_if* receivedInterface, sr_nat_mapping_t * natMapping, uint8_t* received_frame);
+static void natRecalculateTcpChecksum(sr_ip_hdr_t * tcpPacket, unsigned int length);
 
 #endif

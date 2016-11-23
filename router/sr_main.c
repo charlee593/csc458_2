@@ -185,6 +185,10 @@ int main(int argc, char **argv)
 
     if (nat_enabled)
     {
+       sr.nat = malloc(sizeof(sr_nat_t));
+       assert(sr.nat);
+
+       sr_nat_init(sr.nat);
        sr.nat->sr = &sr;
        sr.nat->icmp_timeout = icmp_query_timeout;
        sr.nat->tcp_established_timeout = tcp_established_timeout;

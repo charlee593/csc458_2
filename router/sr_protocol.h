@@ -140,8 +140,44 @@ struct sr_icmp_t3_hdr {
 } __attribute__ ((packed)) ;
 typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
 
+/**
+ * @brief Header structure for a Type 11 (Time Exceeded) ICMP packet.
+ * @see http://www.ietf.org/rfc/rfc0792.txt
+ */
+typedef struct __attribute__((packed))
+{
+   uint8_t icmp_type; /**< ICMP Type (should be 11) */
+   uint8_t icmp_code; /**< ICMP Code */
+   uint16_t icmp_sum; /**< ICMP checksum (covers entire payload) */
+   uint16_t unused; /**< unused */
+   uint8_t data[1]; /**< Variable length data containing IP datagram and first 8 bytes of transport. */
+} sr_icmp_t11_hdr_t;
 
+/**
+ * @brief Header structure for a transmission control protocol (TCP) packet header.
+ * @note controlBits field should not be accessed directly, but used with associated bit masks.
+ * @see http://tools.ietf.org/html/rfc793#section-3.1
+ */
+typedef struct __attribute__((packed))
+{
+   uint16_t sourcePort; /**< The source port number. */
+   uint16_t destinationPort; /**< The destination port number. */
+   uint32_t sequenceNumber; /**< The sequence number of the first data octet in this segment (except when SYN is present) */
+   uint32_t acknowledgmentNumber; /**< Field contains the value of the next sequence number the sender of the segment is expecting to receive */
+   uint16_t offset_controlBits;
+   uint16_t window; /**< The number of data octets beginning with the one indicated in the acknowledgment field which the sender of this segment is willing to accept. */
+   uint16_t checksum;
+   uint16_t urgentPointer; /**< current value of the urgent pointer as a positive offset from the sequence number in this segment. */
+} sr_tcp_hdr_t;
 
+typedef struct __attribute__((packed))
+{
+   uint32_t sourceAddress; /**< The source address of the IP datagram */
+   uint32_t destinationAddress; /**< The destination address of the IP datagram */
+   uint8_t zeros; /**< A byte of 0 */
+   uint8_t protocol; /**< IP Protocol field (should be ip_protocol_tcp) */
+   uint16_t tcpLength; /**< Length of the TCP packet */
+} sr_tcp_ip_pseudo_hdr_t;
 
 /*
  * Structure of an internet header, naked of options.
