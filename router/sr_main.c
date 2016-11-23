@@ -45,6 +45,11 @@ extern char* optarg;
 #define DEFAULT_RTABLE "rtable"
 #define DEFAULT_TOPO 0
 
+/*NAT*/
+#define DEFAULT_ICMP_TIMEOUT  (60)
+#define DEFAULT_TCP_ESTABLISHED_TIMEOUT   (7440)
+#define DEFAULT_TCP_TRANSITORY_TIMEOUT    (300)
+
 static void usage(char* );
 static void sr_init_instance(struct sr_instance* );
 static void sr_destroy_instance(struct sr_instance* );
@@ -66,6 +71,13 @@ int main(int argc, char **argv)
     unsigned int topo = DEFAULT_TOPO;
     char *logfile = 0;
     struct sr_instance sr;
+
+
+    /*NAT*/
+    bool nat_enabled = false;
+    unsigned int icmp_query_timeout = DEFAULT_ICMP_TIMEOUT;
+    unsigned int tcp_established_timeout = DEFAULT_TCP_ESTABLISHED_TIMEOUT;
+    unsigned int tcp_transitiory_timeout = DEFAULT_TCP_TRANSITORY_TIMEOUT;
 
     printf("Using %s\n", VERSION_INFO);
 
@@ -100,6 +112,18 @@ int main(int argc, char **argv)
                 break;
             case 'T':
                 template = optarg;
+                break;
+            case 'n':
+                nat_enabled = true;
+                break;
+            case 'I':
+                icmp_query_timeout = atoi((char *) optarg);
+                break;
+            case 'E':
+            	tcp_established_timeout = atoi((char *) optarg);
+                break;
+            case 'R':
+            	tcp_transitiory_timeout = atoi((char *) optarg);
                 break;
         } /* switch */
     } /* -- while -- */
@@ -158,6 +182,14 @@ int main(int argc, char **argv)
 
     /* call router init (for arp subsystem etc.) */
     sr_init(&sr);
+
+    if (nat_enabled)
+    {
+       sr.nat->sr = &sr;
+       sr.nat->icmp_timeout = icmp_query_timeout;
+       sr.nat->tcp_established_timeout = tcp_established_timeout;
+       sr.nat->tcp_transitory_timeout = tcp_transitiory_timeout;
+    }
 
     /* -- whizbang main loop ;-) */
     while( sr_read_from_server(&sr) == 1);
