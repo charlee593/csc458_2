@@ -149,87 +149,13 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface)
 {
-	struct sr_if* iface = sr_get_interface(sr, interface);
 	struct sr_ip_hdr *ip_hdr = (struct sr_ip_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
-	int ip_hl = ip_hdr->ip_hl * 4;
 	uint8_t ip_protocol = ip_hdr->ip_p;
 
 	/*NAT icmp*/
 	if (ip_protocol == ip_protocol_icmp)
 	{
-		sr_icmp_t0_hdr_t *icmp_hdr = (sr_icmp_t0_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-
-		/* Outbound */
-		if (sr_get_interface(sr, INTERNAL_INTERFACE)->ip == iface->ip)
-		{
-
-		  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_id, nat_mapping_icmp);
-
-		  /* No mapping */
-		  if (!nat_lookup_result)
-		  {
-			nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_id, nat_mapping_icmp);
-		  }
-
-		  /* Translate header */
-		  ip_hdr->ip_src = sr_get_interface(sr, EXTERNAL_INTERFACE)->ip;
-
-		  icmp_hdr->icmp_id = nat_lookup_result->aux_ext;
-		  icmp_hdr->icmp_sum = 0;
-		  icmp_hdr->icmp_sum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - ip_hl);
-
-		  ip_hdr->ip_sum = 0;
-		  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
-
-		  handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
-
-		}
-		/* Inbound */
-		else if (sr_get_interface(sr, EXTERNAL_INTERFACE)->ip == iface->ip)
-		{
-
-		  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_id, nat_mapping_icmp);
-
-		  if (nat_lookup_result)
-		  {
-
-			ip_hdr->ip_dst = nat_lookup_result->ip_int;
-			icmp_hdr->icmp_id = nat_lookup_result->aux_int;
-			icmp_hdr->icmp_sum = 0;
-			icmp_hdr->icmp_sum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - ip_hl);
-			ip_hdr->ip_sum = 0;
-			ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
-
-			handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
-
-		  }
-		  else
-		  {
-			sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-
-			/* ICMP echo request or reply*/
-			if (icmp_hdr->icmp_type == icmp_type_echo_req || icmp_hdr->icmp_code == icmp_type_echo_reply)
-			{
-
-		        /* Check ICMP packet checksum */
-		        uint16_t icmp_sum_temp = icmp_hdr->icmp_sum;
-		        icmp_hdr->icmp_sum = 0;
-		        int icmp_len = ntohs(ip_hdr->ip_len) - ip_hl;
-		        if(icmp_sum_temp == cksum(icmp_hdr, icmp_len))
-		        {
-		        	icmp_hdr->icmp_sum = icmp_sum_temp;
-		        	send_echo_reply(sr, packet, interface, len);
-		            return;
-		        }
-
-			}
-		  }
-
-		}
-		else
-		{
-		  return;
-		}
+		nat_handle_icmp(sr, packet, len, interface);
 	}
 }
 
@@ -252,4 +178,86 @@ int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type)
 	}
 
    return curr_port;
+}
+
+void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface)
+{
+	struct sr_if* iface = sr_get_interface(sr, interface);
+	struct sr_ip_hdr *ip_hdr = (struct sr_ip_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
+	int ip_hl = ip_hdr->ip_hl * 4;
+
+	sr_icmp_t0_hdr_t *icmp_hdr = (sr_icmp_t0_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+	/* Outbound */
+	if (sr_get_interface(sr, INTERNAL_INTERFACE)->ip == iface->ip)
+	{
+
+	  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_id, nat_mapping_icmp);
+
+	  /* No mapping */
+	  if (!nat_lookup_result)
+	  {
+		nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, icmp_hdr->icmp_id, nat_mapping_icmp);
+	  }
+
+	  /* Translate header */
+	  ip_hdr->ip_src = sr_get_interface(sr, EXTERNAL_INTERFACE)->ip;
+
+	  icmp_hdr->icmp_id = nat_lookup_result->aux_ext;
+	  icmp_hdr->icmp_sum = 0;
+	  icmp_hdr->icmp_sum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - ip_hl);
+
+	  ip_hdr->ip_sum = 0;
+	  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+
+	  handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
+
+	}
+	/* Inbound */
+	else if (sr_get_interface(sr, EXTERNAL_INTERFACE)->ip == iface->ip)
+	{
+
+	  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_external(sr->nat, icmp_hdr->icmp_id, nat_mapping_icmp);
+
+	  if (nat_lookup_result)
+	  {
+
+		ip_hdr->ip_dst = nat_lookup_result->ip_int;
+		icmp_hdr->icmp_id = nat_lookup_result->aux_int;
+		icmp_hdr->icmp_sum = 0;
+		icmp_hdr->icmp_sum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - ip_hl);
+		ip_hdr->ip_sum = 0;
+		ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+
+		handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
+
+	  }
+	  else
+	  {
+		sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+		/* ICMP echo request or reply*/
+		if (icmp_hdr->icmp_type == icmp_type_echo_req || icmp_hdr->icmp_code == icmp_type_echo_reply)
+		{
+
+			/* Check ICMP packet checksum */
+			uint16_t icmp_sum_temp = icmp_hdr->icmp_sum;
+			icmp_hdr->icmp_sum = 0;
+			int icmp_len = ntohs(ip_hdr->ip_len) - ip_hl;
+			if(icmp_sum_temp == cksum(icmp_hdr, icmp_len))
+			{
+				icmp_hdr->icmp_sum = icmp_sum_temp;
+				send_echo_reply(sr, packet, interface, len);
+				return;
+			}
+
+		}
+	  }
+
+	}
+	else
+	{
+		/*Bad packet*/
+		return;
+	}
 }

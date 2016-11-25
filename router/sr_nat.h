@@ -86,5 +86,6 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
 void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
 int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type);
+void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
 
 #endif
