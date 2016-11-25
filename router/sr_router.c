@@ -22,7 +22,6 @@
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
-#include "sr_rt.h"
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -49,6 +48,10 @@ void sr_init(struct sr_instance* sr)
     pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
     
     /* Add initialization code here! */
+    if (!sr->nat)
+    {
+        sr_nat_init(sr->nat);
+    }
 
 } /* -- sr_init -- */
 
@@ -139,21 +142,6 @@ void sr_handlepacket(struct sr_instance* sr,
         }
         ip_hdr->ip_sum = ip_checksum_temp;
 
-        if(sr->nat_enabled)
-        {
-		   if (ip_hdr->ip_p == ip_protocol_icmp)
-		   {
-			   nat_handle_icmp(sr, packet, len, iface);
-		   }
-		   else if (ip_hdr->ip_p == ip_protocol_tcp)
-		   {
-		   }
-		   else
-		   {
-	            printf("---->> Unknow packet type %u <----\n", cksum(ip_hdr, sizeof(struct sr_ip_hdr)));
-		   }
-		   return;
-        }
 
         /* Check if it is for me - find interfaces name */
         struct sr_if* curr_if = sr->if_list;
@@ -177,7 +165,6 @@ void sr_handlepacket(struct sr_instance* sr,
 
             handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
         }
-
     }
     else
     {

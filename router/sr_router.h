@@ -12,7 +12,6 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <stdio.h>
-#include <stdbool.h>
 
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
@@ -62,8 +61,7 @@ struct sr_instance
     struct sr_arpcache cache;   /* ARP cache */
     pthread_attr_t attr;
     FILE* logfile;
-    bool nat_enabled;
-    struct sr_nat* nat;          /* NAT */
+    struct sr_nat *nat;
 };
 
 /* -- sr_main.c -- */

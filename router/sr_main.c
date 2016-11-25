@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 #ifdef _LINUX_
 #include <getopt.h>
@@ -32,6 +33,7 @@
 #include "sr_dumper.h"
 #include "sr_router.h"
 #include "sr_rt.h"
+#include "sr_nat.h"
 
 extern char* optarg;
 
@@ -45,16 +47,18 @@ extern char* optarg;
 #define DEFAULT_RTABLE "rtable"
 #define DEFAULT_TOPO 0
 
-/*NAT*/
 #define DEFAULT_ICMP_TIMEOUT  (60)
-#define DEFAULT_TCP_ESTABLISHED_TIMEOUT   (7440)
-#define DEFAULT_TCP_TRANSITORY_TIMEOUT    (300)
 
 static void usage(char* );
 static void sr_init_instance(struct sr_instance* );
 static void sr_destroy_instance(struct sr_instance* );
 static void sr_set_user(struct sr_instance* );
 static void sr_load_rt_wrap(struct sr_instance* sr, char* rtable);
+
+bool nat_enabled = true;
+int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
+int tcp_est_idle_timeout = 7440;
+int tcp_trans_idle_timeout = 300;
 
 /*-----------------------------------------------------------------------------
  *---------------------------------------------------------------------------*/
@@ -71,13 +75,6 @@ int main(int argc, char **argv)
     unsigned int topo = DEFAULT_TOPO;
     char *logfile = 0;
     struct sr_instance sr;
-
-
-    /*NAT*/
-    bool nat_enabled = false;
-    unsigned int icmp_query_timeout = DEFAULT_ICMP_TIMEOUT;
-    unsigned int tcp_established_timeout = DEFAULT_TCP_ESTABLISHED_TIMEOUT;
-    unsigned int tcp_transitiory_timeout = DEFAULT_TCP_TRANSITORY_TIMEOUT;
 
     printf("Using %s\n", VERSION_INFO);
 
@@ -114,16 +111,16 @@ int main(int argc, char **argv)
                 template = optarg;
                 break;
             case 'n':
-                nat_enabled = true;
+                nat_enabled = 1;
                 break;
             case 'I':
-                icmp_query_timeout = atoi((char *) optarg);
+                icmp_timeout = atoi((char * ) optarg);
                 break;
             case 'E':
-            	tcp_established_timeout = atoi((char *) optarg);
+                tcp_est_idle_timeout = atoi((char * ) optarg);
                 break;
             case 'R':
-            	tcp_transitiory_timeout = atoi((char *) optarg);
+                tcp_trans_idle_timeout = atoi((char * ) optarg);
                 break;
         } /* switch */
     } /* -- while -- */
@@ -180,20 +177,21 @@ int main(int argc, char **argv)
       sr_load_rt_wrap(&sr, rtable);
     }
 
-    /* call router init (for arp subsystem etc.) */
-    sr_init(&sr);
-
+    /*NAT setting*/
     if (nat_enabled)
     {
-       sr.nat = malloc(sizeof(sr_nat_t));
-       assert(sr.nat);
-
-       sr_nat_init(sr.nat);
-       sr.nat->sr = &sr;
-       sr.nat->icmp_timeout = icmp_query_timeout;
-       sr.nat->tcp_established_timeout = tcp_established_timeout;
-       sr.nat->tcp_transitory_timeout = tcp_transitiory_timeout;
+        struct sr_nat *nat = (struct sr_nat *)(malloc(sizeof(struct sr_nat)));
+        nat->icmp_timeout = icmp_timeout;
+        nat->sr = &sr;
+        sr.nat = nat;
     }
+    else
+    {
+        sr.nat = NULL;
+    }
+
+    /* call router init (for arp subsystem etc.) */
+    sr_init(&sr);
 
     /* -- whizbang main loop ;-) */
     while( sr_read_from_server(&sr) == 1);
