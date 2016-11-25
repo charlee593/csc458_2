@@ -142,6 +142,12 @@ void sr_handlepacket(struct sr_instance* sr,
         }
         ip_hdr->ip_sum = ip_checksum_temp;
 
+        /* NAT packet */
+        if (sr->nat != NULL)
+        {
+          handle_nat_packet(sr, packet, len, interface);
+          return;
+        }
 
         /* Check if it is for me - find interfaces name */
         struct sr_if* curr_if = sr->if_list;
@@ -157,6 +163,8 @@ void sr_handlepacket(struct sr_instance* sr,
             }
             curr_if = curr_if->next;
         }
+
+
 
         /* It is not for me */
         if(curr_if == NULL)
@@ -627,19 +635,3 @@ struct sr_rt* lpm(struct sr_instance *sr, uint32_t target_ip)
     }
     return result;
 }/* end lpm */
-
-/*
- * Compute and return the length of a given mask.
- */
-int get_mask_len(uint32_t mask)
-{
-    int len = 0;
-    uint32_t tmp = 0x80000000;
-
-    while(tmp != 0 && (tmp & mask) != 0)
-    {
-        tmp >>= 1;
-        len++;
-    }
-    return len;
-}

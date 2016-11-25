@@ -2,9 +2,26 @@
 #ifndef SR_NAT_TABLE_H
 #define SR_NAT_TABLE_H
 
+#ifndef INTERNAL_INTERFACE
+#define INTERNAL_INTERFACE "eth1"
+#endif
+
+#ifndef EXTERNAL_INTERFACE
+#define EXTERNAL_INTERFACE "eth2"
+#endif
+
+#define STARTING_PORT_NUMBER  (50000)
+#define LAST_PORT_NUMBER      (59999)
+
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "sr_protocol.h"
+#include "sr_router.h"
+#include "sr_utils.h"
 
 typedef enum {
   nat_mapping_icmp,
@@ -36,6 +53,12 @@ struct sr_nat {
   int icmp_timeout;
   struct sr_instance *sr;
 
+  int used_icmp_ids[65535];
+  int used_tcp_ports[64511];
+
+/*  uint16_t tcp_port_num;
+  uint16_t icmp_ident_num;*/
+
   /* threading */
   pthread_mutex_t lock;
   pthread_mutexattr_t attr;
@@ -63,5 +86,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
 
+void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
+int get_port_number(struct sr_nat *nat, sr_nat_mapping_type type);
 
 #endif

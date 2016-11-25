@@ -82,7 +82,6 @@ void handle_ip_packet_to_forward(struct sr_instance* sr, uint8_t* packet, unsign
 void send_echo_reply(struct sr_instance* sr, uint8_t* received_frame, char* from_interface, int len);
 void send_icmp_t3_or_t11(struct sr_instance* sr, uint8_t* received_frame, char* from_interface, sr_icmp_type_t type, sr_icmp_dest_unreachable_code_t code);
 struct sr_rt* lpm(struct sr_instance *sr, uint32_t target_ip);
-int get_mask_len(uint32_t mask);
 
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );
