@@ -24,7 +24,6 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/types.h>
-#include <stdbool.h>
 
 #ifdef _LINUX_
 #include <getopt.h>
@@ -55,11 +54,6 @@ static void sr_destroy_instance(struct sr_instance* );
 static void sr_set_user(struct sr_instance* );
 static void sr_load_rt_wrap(struct sr_instance* sr, char* rtable);
 
-bool nat_enabled = true;
-int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
-int tcp_est_idle_timeout = 7440;
-int tcp_trans_idle_timeout = 300;
-
 /*-----------------------------------------------------------------------------
  *---------------------------------------------------------------------------*/
 
@@ -76,9 +70,14 @@ int main(int argc, char **argv)
     char *logfile = 0;
     struct sr_instance sr;
 
+    int nat_enabled = 0;
+    int icmp_timeout = DEFAULT_ICMP_TIMEOUT;
+    int tcp_est_idle_timeout = 7440;
+    int tcp_trans_idle_timeout = 300;
+
     printf("Using %s\n", VERSION_INFO);
 
-    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:")) != EOF)
+    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:ns:I:E:R:")) != EOF)
     {
         switch (c)
         {
@@ -111,7 +110,7 @@ int main(int argc, char **argv)
                 template = optarg;
                 break;
             case 'n':
-                nat_enabled = true;
+                nat_enabled = 1;
                 break;
             case 'I':
                 icmp_timeout = atoi((char * ) optarg);
@@ -176,7 +175,6 @@ int main(int argc, char **argv)
       /* Read from specified routing table */
       sr_load_rt_wrap(&sr, rtable);
     }
-
     /*NAT setting*/
     if (nat_enabled)
     {
