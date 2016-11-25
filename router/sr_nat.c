@@ -25,10 +25,8 @@ int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 
   nat->mappings = NULL;
   /* Initialize any variables here */
-
-  memset(nat->used_icmp_ids, 0, sizeof(nat->used_icmp_ids));
-  memset(nat->used_tcp_ports, 0, sizeof(nat->used_tcp_ports));
-
+  nat->icmp_id = STARTING_PORT_NUMBER;
+  nat->tcp_port_num = STARTING_PORT_NUMBER;
 
   return success;
 }
@@ -133,55 +131,20 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
   /* handle insert here, create a mapping, and then return a copy of it */
   struct sr_nat_mapping *mapping = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
-  struct sr_nat_mapping *mapping_copy = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
+  struct sr_nat_mapping *copy = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
 
   mapping->type = type;
   mapping->ip_int = ip_int;
   mapping->aux_int = aux_int;
-
-  if (get_port_number(nat, type) == -1) {
-    fprintf(stderr, "ERROR: invalid port number\n");
-  }
-  mapping->aux_ext = htons(get_port_number(nat, type));
-
   mapping->conns = NULL;
+  mapping->aux_ext = htons(get_port_num(nat, type));
+  mapping->last_updated = time(NULL);
   mapping->next = nat->mappings;
   nat->mappings = mapping;
-
-  memcpy(mapping_copy, mapping, sizeof(struct sr_nat_mapping));
-
-  mapping->last_updated = time(NULL);
-
+  memcpy(copy, mapping, sizeof(struct sr_nat_mapping));
 
   pthread_mutex_unlock(&(nat->lock));
-  return mapping_copy;
-}
-
-/* Return an ICMP ID for an ICMP mapping or an unused port number for a TCP mapping */
-int get_port_number(struct sr_nat *nat, sr_nat_mapping_type type) {
-
-  uint16_t i = -1;
-
-  if (type == nat_mapping_icmp) {
-
-    for (i = 0; i < 65535; i++) {
-      if (!nat->used_icmp_ids[i]) {
-        nat->used_icmp_ids[i] = 1;
-        return i;
-      }
-    }
-
-  } else if (type == nat_mapping_tcp) {
-
-    for (i = 0; i < 64511; i++) {
-      if (!nat->used_tcp_ports[i]) {
-        nat->used_tcp_ports[i] = 1;
-        return i + 1024;
-      }
-    }
-  }
-
-  return i;
+  return copy;
 }
 
 void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface)
@@ -268,4 +231,25 @@ void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int le
 		  return;
 		}
 	}
+}
+
+int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type)
+{
+	uint16_t curr_port;
+	struct sr_nat_mapping * curr_mapping = nat->mappings;
+	if (type == nat_mapping_icmp)
+	{
+		curr_port = nat->icmp_id;
+	}
+	else if (type == nat_mapping_tcp)
+	{
+		curr_port = nat->tcp_port_num;
+	}
+
+	while (curr_mapping)
+	{
+		curr_mapping = curr_mapping->next;
+	}
+
+   return curr_port;
 }

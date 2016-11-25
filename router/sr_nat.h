@@ -53,11 +53,9 @@ struct sr_nat {
   int icmp_timeout;
   struct sr_instance *sr;
 
-  int used_icmp_ids[65535];
-  int used_tcp_ports[64511];
+  int icmp_id;
+  int tcp_port_num;
 
-/*  uint16_t tcp_port_num;
-  uint16_t icmp_ident_num;*/
 
   /* threading */
   pthread_mutex_t lock;
@@ -87,6 +85,6 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type );
 
 void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
-int get_port_number(struct sr_nat *nat, sr_nat_mapping_type type);
+int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type);
 
 #endif
