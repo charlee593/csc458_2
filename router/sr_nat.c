@@ -133,6 +133,18 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   struct sr_nat_mapping *mapping = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
   struct sr_nat_mapping *copy = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
 
+  struct sr_if *int_iface = sr_get_interface(nat->sr,"eth1");
+  struct sr_if *iface = nat->sr->if_list;
+  while(iface)
+  {
+	if (iface != int_iface)
+	{
+		mapping->ip_ext = iface->ip;
+		break;
+	}
+	iface = iface->next;
+  }
+
   mapping->type = type;
   mapping->ip_int = ip_int;
   mapping->aux_int = aux_int;
@@ -305,10 +317,10 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 		nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
 	  }
 
-	  update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 2);
+/*	  update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 2);*/
 
 	  /* Translate header */
-	  ip_hdr->ip_src = sr_get_interface(sr, EXTERNAL_INTERFACE)->ip;
+	  ip_hdr->ip_src = nat_lookup_result->ip_ext;
 	  tcp_hdr->src_port = nat_lookup_result->aux_ext;
 	  ip_hdr->ip_sum = 0;
 	  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
@@ -343,15 +355,15 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 
 		if (nat_lookup_result)
 		{
-			if (!update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 1))
-			{
+/*			if (!update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 1))
+			{*/
 			  ip_hdr->ip_dst = nat_lookup_result->ip_int;
 			  tcp_hdr->dst_port = nat_lookup_result->aux_int;
 			  ip_hdr->ip_sum = 0;
 			  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
 			  tcp_hdr->tcp_sum = 0;
 
-/*			  unsigned int tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t);
+			  unsigned int tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t);
 			  unsigned int total_len = sizeof(sr_tcp_pseudo_hdr_t) + tcp_len;
 			  uint8_t *temp_hdr_buf = malloc(total_len);
 			  sr_tcp_pseudo_hdr_t *temp_hdr = (sr_tcp_pseudo_hdr_t *)temp_hdr_buf;
@@ -366,11 +378,11 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 
 			  tcp_hdr->tcp_sum = cksum(temp_hdr_buf, total_len);
 
-			  free(temp_hdr_buf);*/
+			  free(temp_hdr_buf);
 			  free(nat_lookup_result);
 			  handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
-			}
-
+			/*}
+*/
 		}
 		else if (tcp_hdr->ctrl_flags & SYN_FLAG)
 		{
