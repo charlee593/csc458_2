@@ -91,6 +91,39 @@ static const uint8_t IP_INIT_TTL = 64;
 
 #define ICMP_DATA_SIZE 28
 
+#define URG_FLAG 0x0020
+#define ACK_FLAG 0x0010
+#define PSH_FLAG 0x0008
+#define RST_FLAG 0x0004
+#define SYN_FLAG 0x0002
+#define FIN_FLAG 0x0001
+
+
+struct sr_tcp_hdr
+{
+    uint16_t src_port;
+    uint16_t dst_port;
+    uint32_t seqno;
+    uint32_t ackno;
+    uint8_t offset;
+    uint8_t ctrl_flags;
+    uint16_t window;
+    uint16_t tcp_sum;
+    uint16_t urg_ptr;
+} __attribute__ ((packed));
+typedef struct sr_tcp_hdr sr_tcp_hdr_t;
+
+struct sr_tcp_pseudo_hdr
+{
+  uint32_t ip_src;
+  uint32_t ip_dst;
+  uint8_t pad;
+  uint8_t ip_p;
+  uint16_t length;
+} __attribute__ ((packed));
+typedef struct sr_tcp_pseudo_hdr sr_tcp_pseudo_hdr_t;
+
+
 enum sr_icmp_type {
   icmp_type_echo_reply = 0,
   icmp_type_dest_unreachable = 3,

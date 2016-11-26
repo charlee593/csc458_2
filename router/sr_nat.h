@@ -29,10 +29,26 @@ typedef enum {
   /* nat_mapping_udp, */
 } sr_nat_mapping_type;
 
-struct sr_nat_connection {
-  /* add TCP connection state data members here */
+typedef enum {
+  closed,
+  outbound_syn_sent,
+  unsolicited_syn_received,
+  syn_received,
+  established,
+  fin_1, /* Send FIN */
+  fin_2, /* Receieved ACK for FIN */
+  fin_3, /* Receieved FIN */
+} tcp_conn_state;
 
-  struct sr_nat_connection *next;
+struct sr_nat_connection {
+	  /* add TCP connection state data members here */
+	  uint32_t ip;
+	  uint16_t port;
+	  tcp_conn_state state;
+	  uint8_t *unsolicited_packet;
+	  time_t last_updated;
+
+	  struct sr_nat_connection *next;
 };
 
 struct sr_nat_mapping {
@@ -87,5 +103,9 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
 int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type);
 void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
+void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
+
+int update_conn_state(struct sr_nat_connection *connection, uint8_t flags, int direction);
+int update_tcp_conn(struct sr_nat *nat, struct sr_nat_mapping *mapping_copy, uint8_t *packet, unsigned int len, int direction);
 
 #endif

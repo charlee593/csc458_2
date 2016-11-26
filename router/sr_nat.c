@@ -105,7 +105,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
   while (mapping)
   {
 
-	if (mapping->type == type && mapping->aux_int == aux_int && mapping->ip_int == ip_int)
+	if (mapping->type == type &&  mapping->ip_int == ip_int && mapping->aux_int == aux_int )
 	{
 		mapping->last_updated = time(NULL);
 		copy = malloc(sizeof(struct sr_nat_mapping));
@@ -157,6 +157,10 @@ void handle_nat_packet(struct sr_instance* sr, uint8_t * packet, unsigned int le
 	{
 		nat_handle_icmp(sr, packet, len, interface);
 	}
+	else if (ip_protocol == ip_protocol_tcp)
+	{
+		nat_handle_tcp(sr, packet, len, interface);
+	}
 }
 
 int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type)
@@ -172,9 +176,27 @@ int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type)
 		curr_port = nat->tcp_port_num;
 	}
 
+	/*Find a port that is not used*/
 	while (curr_mapping)
 	{
-		curr_mapping = curr_mapping->next;
+		if ((curr_mapping->type == type) && (htons(curr_port) == curr_mapping->aux_ext))
+		{
+			curr_port++;
+			curr_mapping = nat->mappings;
+		}
+		else
+		{
+			curr_mapping = curr_mapping->next;
+		}
+	}
+
+	if (type == nat_mapping_icmp)
+	{
+		nat->icmp_id = curr_port + 1;
+	}
+	else if (type == nat_mapping_tcp)
+	{
+		nat->tcp_port_num = curr_port + 1;
 	}
 
    return curr_port;
@@ -229,6 +251,7 @@ void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len,
 		ip_hdr->ip_sum = 0;
 		ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
 
+		free(nat_lookup_result);
 		handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
 
 	  }
@@ -260,4 +283,229 @@ void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len,
 		/*Bad packet*/
 		return;
 	}
+}
+
+
+void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface)
+{
+	struct sr_if* iface = sr_get_interface(sr, interface);
+	struct sr_ip_hdr *ip_hdr = (struct sr_ip_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
+
+	sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+	/* Outbound */
+	if (sr_get_interface(sr, INTERNAL_INTERFACE)->ip == iface->ip)
+	{
+
+	  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
+
+	  /* No mapping */
+	  if (!nat_lookup_result)
+	  {
+		nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
+	  }
+
+	  update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 2);
+
+	  /* Translate header */
+	  ip_hdr->ip_src = sr_get_interface(sr, EXTERNAL_INTERFACE)->ip;
+	  tcp_hdr->src_port = nat_lookup_result->aux_ext;
+	  ip_hdr->ip_sum = 0;
+	  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+	  tcp_hdr->tcp_sum = 0;
+
+
+	  unsigned int tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t);
+	  unsigned int total_len = sizeof(sr_tcp_pseudo_hdr_t) + tcp_len;
+	  uint8_t *temp_hdr_buf = malloc(total_len);
+	  sr_tcp_pseudo_hdr_t *temp_hdr = (sr_tcp_pseudo_hdr_t *)temp_hdr_buf;
+
+	  temp_hdr->ip_src = ip_hdr->ip_src;
+	  temp_hdr->ip_dst = ip_hdr->ip_dst;
+	  temp_hdr->pad = 0;
+	  temp_hdr->ip_p = ip_hdr->ip_p;
+	  temp_hdr->length = htons(tcp_len);
+
+	  memcpy(temp_hdr_buf + sizeof(sr_tcp_pseudo_hdr_t), tcp_hdr, tcp_len);
+
+	  tcp_hdr->tcp_sum = cksum(temp_hdr_buf, total_len);
+
+	  free(temp_hdr_buf);
+	  free(nat_lookup_result);
+	  handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
+
+	}
+	/* Inbound*/
+	else if (sr_get_interface(sr, EXTERNAL_INTERFACE)->ip == iface->ip)
+	{
+
+		struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_external(sr->nat, tcp_hdr->dst_port, nat_mapping_tcp);
+
+		if (nat_lookup_result)
+		{
+			if (!update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 1))
+			{
+			  ip_hdr->ip_dst = nat_lookup_result->ip_int;
+			  tcp_hdr->dst_port = nat_lookup_result->aux_int;
+			  ip_hdr->ip_sum = 0;
+			  ip_hdr->ip_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+			  tcp_hdr->tcp_sum = 0;
+
+/*			  unsigned int tcp_len = len - sizeof(sr_ethernet_hdr_t) - sizeof(sr_ip_hdr_t);
+			  unsigned int total_len = sizeof(sr_tcp_pseudo_hdr_t) + tcp_len;
+			  uint8_t *temp_hdr_buf = malloc(total_len);
+			  sr_tcp_pseudo_hdr_t *temp_hdr = (sr_tcp_pseudo_hdr_t *)temp_hdr_buf;
+
+			  temp_hdr->ip_src = ip_hdr->ip_src;
+			  temp_hdr->ip_dst = ip_hdr->ip_dst;
+			  temp_hdr->pad = 0;
+			  temp_hdr->ip_p = ip_hdr->ip_p;
+			  temp_hdr->length = htons(tcp_len);
+
+			  memcpy(temp_hdr_buf + sizeof(sr_tcp_pseudo_hdr_t), tcp_hdr, tcp_len);
+
+			  tcp_hdr->tcp_sum = cksum(temp_hdr_buf, total_len);
+
+			  free(temp_hdr_buf);*/
+			  free(nat_lookup_result);
+			  handle_ip_packet_to_forward(sr, packet, len, ip_hdr, iface);
+			}
+
+		}
+		else if (tcp_hdr->ctrl_flags & SYN_FLAG)
+		{
+			nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
+
+			update_tcp_conn(sr->nat, nat_lookup_result, packet, len, 1);
+		}
+	}
+	else
+	{
+		return;
+	}
+}
+
+/* Update TCP connections for mapping corresponding to mapping_copy */
+int update_tcp_conn(struct sr_nat *nat, struct sr_nat_mapping *mapping_copy, uint8_t *packet, unsigned int len,
+                    int direction) {
+
+  pthread_mutex_lock(&(nat->lock));
+
+  int output = 0;
+  sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  sr_tcp_hdr_t *tcp_hdr = (sr_tcp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+  uint8_t flags = tcp_hdr->ctrl_flags;
+  uint32_t ip;
+  uint16_t port;
+
+  if (direction == 2) {
+    ip = ip_hdr->ip_dst;
+    port = tcp_hdr->dst_port;
+  } else {
+    ip = ip_hdr->ip_src;
+    port = tcp_hdr->src_port;
+  }
+
+  /* Find actual mapping */
+  struct sr_nat_mapping *mapping = nat->mappings;
+  while (mapping &&
+         mapping->ip_int != mapping_copy->ip_int &&
+         mapping->ip_ext != mapping_copy->ip_ext &&
+         mapping->aux_int != mapping_copy->aux_int &&
+         mapping->aux_ext != mapping_copy->aux_ext) {
+    mapping = mapping->next;
+  }
+
+  struct sr_nat_connection *prev = NULL;
+  struct sr_nat_connection *conn = mapping->conns;
+
+  while (conn && conn->ip != ip && conn->port != port) {
+    prev = conn;
+    conn = conn->next;
+  }
+
+  if (conn) {
+    if (update_conn_state(conn, flags, direction)) {
+
+      /* Connection closed*/
+      if (prev) {
+        prev->next = conn->next;
+      } else {
+        mapping->conns = conn->next;
+      }
+    }
+
+  } else {
+
+    if (flags & SYN_FLAG) {
+      tcp_conn_state state;
+
+      if (direction == 2) {
+        state = outbound_syn_sent;
+      } else {
+        state = unsolicited_syn_received;
+        output = 1;
+      }
+
+      /* Need to insert new connection */
+      struct sr_nat_connection *new_connection = (struct sr_nat_connection *)(malloc(sizeof(struct sr_nat_connection)));
+      new_connection->ip = ip;
+      new_connection->port = port;
+      new_connection->state = state;
+
+      if (state == unsolicited_syn_received) {
+        new_connection->unsolicited_packet = malloc(len);
+        memcpy(new_connection->unsolicited_packet, packet, len);
+      }
+
+      new_connection->last_updated = time(NULL);
+      new_connection->next = mapping->conns;
+      mapping->conns = new_connection;
+    }
+  }
+
+  mapping->last_updated = time(NULL);
+
+  pthread_mutex_unlock(&(nat->lock));
+  return output;
+}
+
+/* Updates state member for a given connection
+    1 for inbound packets
+    2 for outbound packets
+*/
+int update_conn_state(struct sr_nat_connection *connection,
+                      uint8_t flags,
+                      int direction) {
+
+  int output = 0;
+
+  if (connection->state == unsolicited_syn_received && direction == 2 && (flags & SYN_FLAG)) {
+    connection->state = outbound_syn_sent;
+
+  } else if (connection->state == outbound_syn_sent) {
+
+    if (direction == 1) {
+      if ((flags & SYN_FLAG) && (flags & ACK_FLAG)) {
+        connection->state = established;
+      } else if (flags & SYN_FLAG) {
+        connection->state = syn_received;
+      }
+    }
+
+  } else if (connection->state == syn_received && direction == 1 && (flags & ACK_FLAG)) {
+    connection->state = established;
+  } else if (connection->state == established && direction == 2 && (flags & FIN_FLAG)) {
+    connection->state = fin_1;
+  } else if (connection->state == fin_1 && direction == 1 && (flags & ACK_FLAG)) {
+    connection->state = fin_2;
+  } else if (connection->state == fin_2 && direction == 1 && (flags & FIN_FLAG)) {
+    connection->state = fin_3;
+  } else if (connection->state == fin_3 && direction == 2 && (flags & ACK_FLAG)) {
+    connection->state = closed;
+    output = 1;
+  }
+
+  connection->last_updated = time(NULL);
+  return output;
 }
