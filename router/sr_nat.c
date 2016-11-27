@@ -400,8 +400,17 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 		}
 		else
 		{
-		    nat_send_icmp_t3(sr, icmp_code_port_unreachable, ip_hdr);
-			return;
+	    	  if(ntohs(tcp_hdr->dst_port) >= 1024 && ntohs(tcp_hdr->src_port) >= 1024)
+	    	  {
+	    		  sleep(5);
+	  		    nat_send_icmp_t3(sr, icmp_code_port_unreachable, ip_hdr);
+
+	    	  }
+	    	  else
+	    	  {
+	  		    nat_send_icmp_t3(sr, icmp_code_port_unreachable, ip_hdr);
+
+	    	  }
 		}
 	}
 }
