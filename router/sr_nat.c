@@ -399,6 +399,7 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 		}
 		else
 		{
+		    nat_send_icmp_t3(sr, icmp_code_port_unreachable, ip_hdr);
 			return;
 		}
 	}
