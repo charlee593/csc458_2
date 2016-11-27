@@ -488,7 +488,7 @@ void nat_send_icmp_t3(struct sr_instance* sr, sr_icmp_dest_unreachable_code_t ic
 		memcpy(arp_hdr->ar_sha, sr_get_interface(sr, iface->interface)->addr, ETHER_ADDR_LEN);
 		arp_hdr->ar_sip = sr_get_interface(sr, iface->interface)->ip;
 		memset(arp_hdr->ar_tha, 0, ETHER_ADDR_LEN);
-		arp_hdr->ar_tip = htonl(req->ip);
+		arp_hdr->ar_tip = req->ip;
 
 		sr_send_packet(sr, arp_packet, sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t),
 			 sr_get_interface(sr, iface->interface)->name);

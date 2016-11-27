@@ -258,27 +258,6 @@ void process_arp_reply(struct sr_instance* sr, struct sr_arp_hdr* arp_hdr, struc
     if req:
     send all packets on the req->packets linked list
     arpreq_destroy(req) */
-    struct sr_arpreq* req_nat = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, ntohl(arp_hdr->ar_sip));
-    if(req_nat)
-    {
-        struct sr_packet* curr_packet_to_send = req_nat->packets;
-
-        printf("---->> ARP Reply send outstanding packet <----\n");
-        while(curr_packet_to_send != NULL)
-        {
-            struct sr_ethernet_hdr* curr_e_hdr = (struct sr_ethernet_hdr*)curr_packet_to_send->buf;
-
-            struct sr_if *interface_out = sr_get_interface(sr, curr_packet_to_send->iface);
-            memcpy(curr_e_hdr->ether_shost, interface_out->addr, ETHER_ADDR_LEN);
-            memcpy(curr_e_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
-
-            /* Send packet */
-            sr_send_packet(sr, curr_packet_to_send->buf, curr_packet_to_send->len, iface->name);
-
-            curr_packet_to_send = curr_packet_to_send->next;
-        }
-        sr_arpreq_destroy(&sr->cache, req_nat);
-    }
 
     struct sr_arpreq* req = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
     if(req)
