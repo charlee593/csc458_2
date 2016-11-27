@@ -98,26 +98,31 @@ void sr_handlepacket(struct sr_instance* sr,
     /* Check if Ethertype is ARP */
     if (e_hdr->ether_type == htons(ethertype_arp))
     {
-        /* Get the ARP header */
+/*         Get the ARP header*/
         struct sr_arp_hdr* arp_hdr = (struct sr_arp_hdr*)(packet + sizeof(struct sr_ethernet_hdr));
 
         printf("---->> Packet type ARP %u, %u <----\n",(unsigned)htons(e_hdr->ether_type), (unsigned)e_hdr->ether_type);
         printf("---->> An ARP packet protocol type %u, %u <----\n", arp_hdr->ar_pro, htons(arp_hdr->ar_pro));
 
-        /* ARP request to me */
+/*         ARP request to me*/
         if(arp_hdr->ar_op == htons(arp_op_request))
         {
             reply_to_arp_req(sr, e_hdr, arp_hdr, iface);
         }
-        /* ARP reply */
+/*         ARP reply*/
         else if(arp_hdr->ar_op == htons(arp_op_reply))
         {
-            process_arp_reply(sr, arp_hdr, iface);
+/*            process_arp_reply(sr, arp_hdr, iface);*/
+        	        linkHandleReceivedArpPacket(sr, (sr_arp_hdr_t*) (packet + sizeof(sr_ethernet_hdr_t)),
+        	        		len - sizeof(sr_ethernet_hdr_t), iface);
         }
         else
         {
             printf("---->> Received ARP Packet that is neither reply nor request <----\n");
         }
+
+/*        linkHandleReceivedArpPacket(sr, (sr_arp_hdr_t*) (packet + sizeof(sr_ethernet_hdr_t)),
+        		len - sizeof(sr_ethernet_hdr_t), iface);*/
     }
     /* Check if Ethertype is IP */
     else if (e_hdr->ether_type == htons(ethertype_ip))
@@ -635,3 +640,57 @@ struct sr_rt* lpm(struct sr_instance *sr, uint32_t target_ip)
     }
     return result;
 }/* end lpm */
+
+
+static void linkHandleReceivedArpPacket(struct sr_instance* sr, sr_arp_hdr_t * packet,
+   unsigned int length, const struct sr_if* const interface)
+{
+
+		struct sr_arpreq* requestPointer = sr_arpcache_insert(
+		   &sr->cache, packet->ar_sha, ntohl(packet->ar_sip));
+
+		if (requestPointer != NULL)
+		{
+			struct sr_packet* curr_packet_to_send = requestPointer->packets;
+
+		   while (curr_packet_to_send != NULL)
+		   {
+
+			  struct sr_if *interface_out = sr_get_interface(sr, curr_packet_to_send->iface);
+			  memcpy(((sr_ethernet_hdr_t*) curr_packet_to_send->buf)->ether_shost, interface_out->addr, ETHER_ADDR_LEN);
+			  memcpy(((sr_ethernet_hdr_t*) curr_packet_to_send->buf)->ether_dhost,
+				 packet->ar_sha, ETHER_ADDR_LEN);
+
+			  sr_send_packet(sr, curr_packet_to_send->buf, curr_packet_to_send->len, curr_packet_to_send->iface);
+
+			  curr_packet_to_send = curr_packet_to_send->next;
+
+
+		   }
+
+		   sr_arpreq_destroy(&sr->cache, requestPointer);
+		}
+
+	    struct sr_arpreq* req = sr_arpcache_insert(&sr->cache, packet->ar_sha, packet->ar_sip);
+	    if(req)
+	    {
+	        struct sr_packet* curr_packet_to_send = req->packets;
+
+	        printf("---->> ARP Reply send outstanding packet <----\n");
+	        while(curr_packet_to_send != NULL)
+	        {
+	            struct sr_ethernet_hdr* curr_e_hdr = (struct sr_ethernet_hdr*)curr_packet_to_send->buf;
+
+	            struct sr_if *interface_out = sr_get_interface(sr, curr_packet_to_send->iface);
+	            memcpy(curr_e_hdr->ether_shost, interface_out->addr, ETHER_ADDR_LEN);
+	            memcpy(curr_e_hdr->ether_dhost, packet->ar_sha, ETHER_ADDR_LEN);
+
+	            sr_send_packet(sr, curr_packet_to_send->buf, curr_packet_to_send->len, interface->name);
+
+	            curr_packet_to_send = curr_packet_to_send->next;
+	        }
+	        sr_arpreq_destroy(&sr->cache, req);
+	    }
+
+}
+
