@@ -23,6 +23,7 @@
 #include "sr_router.h"
 #include "sr_utils.h"
 #include "sr_rt.h"
+#include "sr_icmp.h"
 
 typedef enum {
   nat_mapping_icmp,
