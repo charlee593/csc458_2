@@ -331,8 +331,9 @@ void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, 
 	  struct sr_nat_mapping *nat_lookup_result = sr_nat_lookup_internal(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
 
 	  /* No mapping*/
-	  if (!nat_lookup_result)
+	  if (nat_lookup_result == NULL)
 	  {
+		sleep(6.0);
 		nat_lookup_result = sr_nat_insert_mapping(sr->nat, ip_hdr->ip_src, tcp_hdr->src_port, nat_mapping_tcp);
 	  }
 
