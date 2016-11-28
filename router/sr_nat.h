@@ -107,6 +107,5 @@ int get_port_num(struct sr_nat *nat, sr_nat_mapping_type type);
 void nat_handle_icmp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
 void nat_handle_tcp(struct sr_instance* sr, uint8_t * packet, unsigned int len, char* interface);
 
-void nat_send_icmp_t3(struct sr_instance* sr, sr_icmp_dest_unreachable_code_t icmpCode, sr_ip_hdr_t* originalPacketPtr)
-;
+void nat_send_icmp_t3(struct sr_instance* sr, uint8_t* pkt, int len, uint32_t ip_sip);
 #endif
